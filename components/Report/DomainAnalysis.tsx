@@ -1,6 +1,6 @@
 'use client';
 
-import { Globe, FileText, Link2, BarChart3, Layers, DollarSign, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Globe, FileText, BarChart3, Layers, DollarSign, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
 import { formatNumber } from '@/lib/utils';
 import GaugeChart from '@/components/Charts/GaugeChart';
@@ -144,7 +144,7 @@ export default function DomainAnalysis({ data, apiLogs = [] }: DomainAnalysisPro
     authority,
     trafficByCountry,
     topPagesByTraffic,
-    topPagesByBacklinks,
+    topPagesByTrafficCountry2 = [],
     subdomains = [],
     paidAds = [],
     topPagesWorldwide = [],
@@ -317,56 +317,9 @@ export default function DomainAnalysis({ data, apiLogs = [] }: DomainAnalysisPro
         </div>
       )}
 
-      {/* Top Pages by Backlinks & Traffic (Main Market) */}
+      {/* Top Pages by Traffic (Top 2 Markets) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Pages by Backlinks */}
-        <div className="card">
-          <h4 className="card-header flex items-center gap-2">
-            <Link2 className="w-5 h-5 text-purple-600" />
-            Top Pages by Backlinks
-            <span className="text-xs font-normal text-gray-400">(Global)</span>
-          </h4>
-          {topPagesByBacklinks.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="table-header">Page</th>
-                    <th className="table-header text-right">Backlinks</th>
-                    <th className="table-header text-right">Ref Domains</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topPagesByBacklinks.slice(0, 8).map((page, index) => (
-                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="table-cell">
-                        <div className="truncate max-w-xs text-sm" title={page.page}>
-                          {(() => {
-                            try {
-                              return new URL(page.page).pathname || '/';
-                            } catch {
-                              return page.page;
-                            }
-                          })()}
-                        </div>
-                      </td>
-                      <td className="table-cell text-right font-medium">
-                        {formatNumber(page.backlinks)}
-                      </td>
-                      <td className="table-cell text-right">
-                        {formatNumber(page.refdomains)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-8">No backlink data available</p>
-          )}
-        </div>
-
-        {/* Top Pages by Traffic (Main Market) */}
+        {/* Top Pages by Traffic (Country 1) */}
         <div className="card">
           <h4 className="card-header flex items-center gap-2">
             <FileText className="w-5 h-5 text-amber-600" />
@@ -408,6 +361,51 @@ export default function DomainAnalysis({ data, apiLogs = [] }: DomainAnalysisPro
             </div>
           ) : (
             <p className="text-gray-500 text-center py-8">No page data available</p>
+          )}
+        </div>
+
+        {/* Top Pages by Traffic (Country 2) */}
+        <div className="card">
+          <h4 className="card-header flex items-center gap-2">
+            <FileText className="w-5 h-5 text-blue-600" />
+            Top Pages by Traffic
+            {trafficByCountry[1] && (
+              <span className="text-xs font-normal text-gray-400 flex items-center gap-1">
+                ({getCountryFlag(trafficByCountry[1].source)} {COUNTRY_NAMES[trafficByCountry[1].source] || trafficByCountry[1].source.toUpperCase()})
+              </span>
+            )}
+          </h4>
+          {topPagesByTrafficCountry2.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="table-header">Page</th>
+                    <th className="table-header text-right">Traffic</th>
+                    <th className="table-header text-right">Keywords</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topPagesByTrafficCountry2.slice(0, 8).map((page, index) => (
+                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="table-cell">
+                        <div className="truncate max-w-xs text-sm" title={page.url}>
+                          {new URL(page.url).pathname || '/'}
+                        </div>
+                      </td>
+                      <td className="table-cell text-right font-medium text-green-600">
+                        {formatNumber(page.traffic)}
+                      </td>
+                      <td className="table-cell text-right">
+                        {formatNumber(page.keywords)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">No page data available for second market</p>
           )}
         </div>
       </div>

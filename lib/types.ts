@@ -401,6 +401,7 @@ export interface ReportData {
     subdomains: Subdomain[];
     trafficTrend: DomainHistory[];
     topPagesByTraffic: TopPage[];
+    topPagesByTrafficCountry2?: TopPage[];  // Top pages by traffic for second market
     topPagesByBacklinks: BacklinksIndexedPage[];
     anchorTextDistribution: { anchor: string; count: number }[];
     refDomainsDistribution: BacklinksDistribution;

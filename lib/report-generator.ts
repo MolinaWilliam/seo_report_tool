@@ -152,12 +152,19 @@ export async function generateReport(
 
     const topCompetitorForAnalysis = competitorsResult.data?.[0];
 
+    // Determine second market (if available)
+    const secondMarket = topMarkets.length > 1 ? topMarkets[1] : null;
+
     const [
       topPagesByTrafficResult,
+      topPagesByTrafficCountry2Result,
       keywordOverlapResult,
       backlinkGapsResult,
     ] = await Promise.all([
       client.getTopPagesByTraffic(domain, topMarket, 10).catch(() => ({ data: [] })),
+      secondMarket
+        ? client.getTopPagesByTraffic(domain, secondMarket, 10).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
       topCompetitorForAnalysis
         ? client.getKeywordOverlap(domain, topCompetitorForAnalysis.domain, topMarket, 20).catch(() => ({ data: [] }))
         : Promise.resolve({ data: [] }),
@@ -590,10 +597,12 @@ export async function generateReport(
       keywordGaps: keywordGapsResult.data,
       questionKeywords: questionKeywordsResult.data,
       topMarket,
+      secondMarket,
       // Domain Analysis fields
       trafficByCountry,
       subdomains,
       topPagesByTraffic: topPagesByTrafficResult.data,
+      topPagesByTrafficCountry2: topPagesByTrafficCountry2Result.data,
       topPagesWorldwide,
       // Keywords fields
       positionChanges,
@@ -652,10 +661,12 @@ interface CompileReportInput {
   keywordGaps: KeywordGap[];
   questionKeywords: KeywordQuestion[];
   topMarket: string;
+  secondMarket: string | null;
   // Domain Analysis fields
   trafficByCountry: TrafficByCountry[];
   subdomains: Subdomain[];
   topPagesByTraffic: TopPage[];
+  topPagesByTrafficCountry2: TopPage[];
   topPagesWorldwide: import('./types').URLOverviewWorldwide[];
   // Keywords fields
   positionChanges: { up: number; down: number; new: number; lost: number };
@@ -919,10 +930,12 @@ function compileReport(input: CompileReportInput): ReportData {
     keywordGaps,
     questionKeywords,
     topMarket,
+    secondMarket,
     // Domain Analysis fields
     trafficByCountry,
     subdomains,
     topPagesByTraffic,
+    topPagesByTrafficCountry2,
     topPagesWorldwide,
     // Keywords fields
     positionChanges,
@@ -1013,6 +1026,7 @@ function compileReport(input: CompileReportInput): ReportData {
       subdomains: subdomains || [],
       trafficTrend: domainHistory,
       topPagesByTraffic: topPagesByTraffic || [],
+      topPagesByTrafficCountry2: topPagesByTrafficCountry2.length > 0 ? topPagesByTrafficCountry2 : undefined,
       topPagesByBacklinks: backlinksIndexedPages.slice(0, 10),
       anchorTextDistribution: backlinksSummary?.top_anchors_by_backlinks || [],
       refDomainsDistribution: backlinksDistribution || createEmptyDistribution(),

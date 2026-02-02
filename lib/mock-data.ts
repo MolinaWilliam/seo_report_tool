@@ -200,6 +200,13 @@ export function generateMockReport(domain: string): ReportData {
         { url: '/blog/backlink-strategies', traffic: 3200, keywords: 28 },
         { url: '/features', traffic: 2900, keywords: 15 },
       ],
+      topPagesByTrafficCountry2: [
+        { url: '/blog/seo-guide', traffic: 3200, keywords: 28 },
+        { url: '/tools/keyword-research', traffic: 2100, keywords: 18 },
+        { url: '/pricing', traffic: 1600, keywords: 12 },
+        { url: '/blog/backlink-strategies', traffic: 1100, keywords: 15 },
+        { url: '/features', traffic: 950, keywords: 8 },
+      ],
       topPagesByBacklinks: [
         { page: '/', backlinks: 12500, refdomains: 890, dofollow: 11000, nofollow: 1500 },
         { page: '/blog/seo-guide', backlinks: 3200, refdomains: 420, dofollow: 2800, nofollow: 400 },
