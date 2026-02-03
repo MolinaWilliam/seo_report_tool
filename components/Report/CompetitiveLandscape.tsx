@@ -1,7 +1,71 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Users, ExternalLink, BarChart2, Link2, Repeat, TrendingUp, FileText, ArrowRight, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
+
+// Tooltip component for showing competitor details on hover
+function CompetitorTooltip({
+  children,
+  competitors,
+  type
+}: {
+  children: React.ReactNode;
+  competitors: Array<{ domain: string; position?: number; backlinks?: number }>;
+  type: 'keyword' | 'backlink';
+}) {
+  const [isVisible, setIsVisible] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const triggerRef = useRef<HTMLSpanElement>(null);
+
+  const handleMouseEnter = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPosition({ x: rect.left + rect.width / 2, y: rect.bottom + 8 });
+    }
+    setIsVisible(true);
+  };
+
+  return (
+    <span
+      ref={triggerRef}
+      className="relative inline-block"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      {children}
+      {isVisible && (
+        <div
+          className="fixed z-50 bg-gray-900 text-white text-sm rounded-lg shadow-lg py-2 px-3 min-w-[180px] max-w-[280px]"
+          style={{
+            left: position.x,
+            top: position.y,
+            transform: 'translateX(-50%)'
+          }}
+        >
+          <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-gray-900 rotate-45" />
+          <div className="relative">
+            <p className="text-xs text-gray-400 font-medium mb-1.5 uppercase tracking-wide">
+              {type === 'keyword' ? 'Competitors ranking' : 'Links to competitors'}
+            </p>
+            <ul className="space-y-1">
+              {competitors.map((c, i) => (
+                <li key={i} className="flex items-center justify-between gap-3">
+                  <span className="truncate font-medium">{c.domain}</span>
+                  <span className="text-gray-400 whitespace-nowrap">
+                    {type === 'keyword'
+                      ? `#${c.position}`
+                      : `${c.backlinks} link${c.backlinks !== 1 ? 's' : ''}`
+                    }
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
 import { formatNumber, getDifficultyColor } from '@/lib/utils';
 import BarChart from '@/components/Charts/BarChart';
 import DeveloperInfo from '@/components/DeveloperInfo';
@@ -162,12 +226,12 @@ export default function CompetitiveLandscape({ data, ourDomain, ourTraffic, ourA
         </div>
       </div>
 
-      {/* Multi-Competitor Keyword Opportunities */}
+      {/* Keyword Opportunities */}
       {validatedKeywordGaps.length > 0 && (
         <div className="card">
           <h4 className="card-header flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-green-600" />
-            Multi-Competitor Keyword Opportunities
+            Keyword Opportunities
           </h4>
           <p className="text-sm text-gray-500 mb-4">
             Keywords multiple competitors rank for that you don&apos;t - validated opportunities
@@ -188,13 +252,17 @@ export default function CompetitiveLandscape({ data, ourDomain, ourTraffic, ourA
                   <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="table-cell font-medium text-gray-900">{gap.keyword}</td>
                     <td className="table-cell text-center">
-                      <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-bold ${
-                        gap.competitorCount >= 4 ? 'bg-green-100 text-green-700' :
-                        gap.competitorCount >= 3 ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {gap.competitorCount}
-                      </span>
+                      <CompetitorTooltip competitors={gap.competitors} type="keyword">
+                        <span
+                          className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-bold cursor-help ${
+                            gap.competitorCount >= 4 ? 'bg-green-100 text-green-700' :
+                            gap.competitorCount >= 3 ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {gap.competitorCount}
+                        </span>
+                      </CompetitorTooltip>
                     </td>
                     <td className="table-cell text-right">{formatNumber(gap.volume)}</td>
                     <td className="table-cell">
@@ -221,12 +289,12 @@ export default function CompetitiveLandscape({ data, ourDomain, ourTraffic, ourA
         </div>
       )}
 
-      {/* Multi-Competitor Backlink Opportunities */}
+      {/* Backlink Opportunities */}
       {validatedBacklinkGaps.length > 0 && (
         <div className="card">
           <h4 className="card-header flex items-center gap-2">
             <Link2 className="w-5 h-5 text-indigo-600" />
-            Multi-Competitor Backlink Opportunities
+            Backlink Opportunities
           </h4>
           <p className="text-sm text-gray-500 mb-4">
             Domains linking to multiple competitors but not to you - high-priority outreach targets
@@ -258,13 +326,17 @@ export default function CompetitiveLandscape({ data, ourDomain, ourTraffic, ourA
                       </div>
                     </td>
                     <td className="table-cell text-center">
-                      <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-bold ${
-                        gap.competitorCount >= 4 ? 'bg-green-100 text-green-700' :
-                        gap.competitorCount >= 3 ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {gap.competitorCount}
-                      </span>
+                      <CompetitorTooltip competitors={gap.competitors} type="backlink">
+                        <span
+                          className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-bold cursor-help ${
+                            gap.competitorCount >= 4 ? 'bg-green-100 text-green-700' :
+                            gap.competitorCount >= 3 ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {gap.competitorCount}
+                        </span>
+                      </CompetitorTooltip>
                     </td>
                     <td className="table-cell text-center">
                       <span className={`badge ${

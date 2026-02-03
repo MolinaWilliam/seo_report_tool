@@ -1990,6 +1990,7 @@ export class SeRankingClient {
       limit?: number;
       orderBy?: 'date_found' | 'domain_inlink_rank' | 'inlink_rank';
       dofollowOnly?: boolean;
+      urlFromFilter?: string;
     } = {}
   ): Promise<IndividualBacklink[]> {
     try {
@@ -2013,6 +2014,7 @@ export class SeRankingClient {
         limit: options.limit || 30,
         order_by: options.orderBy || 'domain_inlink_rank',
         dofollow: options.dofollowOnly ? 'dofollow' : undefined,
+        url_from_filter: options.urlFromFilter,
       });
 
       return (response.backlinks || []).map(b => ({
@@ -2409,8 +2411,26 @@ export class SeRankingClient {
   }
 
   /**
+   * Check if we have any backlinks from a specific referring domain
+   * Cost: 1 credit if found, 0 if not found
+   */
+  async hasBacklinkFromDomain(ourDomain: string, referringDomain: string): Promise<boolean> {
+    try {
+      const backlinks = await this.getBacklinksAll(ourDomain, {
+        limit: 1,
+        urlFromFilter: referringDomain,
+      });
+      return backlinks.length > 0;
+    } catch {
+      // On error, assume we don't have it (safer to show as opportunity)
+      return false;
+    }
+  }
+
+  /**
    * Get backlink gaps across multiple competitors
    * Aggregates referring domains that link to competitors but not to us
+   * Orders by domain authority (PageRank impact) and validates each opportunity
    */
   async getMultiCompetitorBacklinkGaps(
     ourDomain: string,
@@ -2418,10 +2438,6 @@ export class SeRankingClient {
     limit: number = 50
   ): Promise<AggregatedBacklinkGap[]> {
     try {
-      // First get our ref domains to exclude
-      const ourRefDomains = await this.getBacklinksRefDomains(ourDomain, 200).catch(() => ({ data: [] }));
-      const ourDomainSet = new Set(ourRefDomains.data.map(r => r.domain));
-
       // Fetch ref domains for each competitor in parallel
       const refDomainResults = await Promise.all(
         competitors.map(async (competitor) => {
@@ -2440,9 +2456,6 @@ export class SeRankingClient {
 
       for (const { competitor, refDomains } of refDomainResults) {
         for (const ref of refDomains) {
-          // Skip if we already have links from this domain
-          if (ourDomainSet.has(ref.domain)) continue;
-
           const existing = domainMap.get(ref.domain);
           if (existing) {
             existing.competitors.push({ domain: competitor, backlinks: ref.backlinks });
@@ -2460,8 +2473,8 @@ export class SeRankingClient {
         }
       }
 
-      // Convert to array and sort
-      const aggregated: AggregatedBacklinkGap[] = Array.from(domainMap.values())
+      // Convert to array and sort by domain authority (PageRank impact) first
+      const candidates = Array.from(domainMap.values())
         .map(item => ({
           domain: item.domain,
           domainInlinkRank: item.domainInlinkRank,
@@ -2469,16 +2482,37 @@ export class SeRankingClient {
           totalBacklinksToCompetitors: item.totalBacklinks,
           competitors: item.competitors,
         }))
-        // Sort by competitorCount desc, then authority desc
+        // Sort by domain authority desc (PageRank impact), then by competitor count
         .sort((a, b) => {
-          if (b.competitorCount !== a.competitorCount) {
-            return b.competitorCount - a.competitorCount;
+          if (b.domainInlinkRank !== a.domainInlinkRank) {
+            return b.domainInlinkRank - a.domainInlinkRank;
           }
-          return b.domainInlinkRank - a.domainInlinkRank;
-        })
-        .slice(0, limit);
+          return b.competitorCount - a.competitorCount;
+        });
 
-      return aggregated;
+      // Validate top candidates by checking if we already have backlinks from them
+      // Take more candidates than needed in case some are filtered out
+      const candidatesToValidate = candidates.slice(0, limit * 2);
+
+      // Validate in batches of 5 to respect rate limits
+      const validated: AggregatedBacklinkGap[] = [];
+      for (let i = 0; i < candidatesToValidate.length && validated.length < limit; i += 5) {
+        const batch = candidatesToValidate.slice(i, i + 5);
+        const validationResults = await Promise.all(
+          batch.map(async (candidate) => {
+            const hasBacklink = await this.hasBacklinkFromDomain(ourDomain, candidate.domain);
+            return { candidate, hasBacklink };
+          })
+        );
+
+        for (const { candidate, hasBacklink } of validationResults) {
+          if (!hasBacklink && validated.length < limit) {
+            validated.push(candidate);
+          }
+        }
+      }
+
+      return validated;
     } catch (error) {
       console.warn('Failed to fetch multi-competitor backlink gaps:', error);
       return [];
