@@ -5,12 +5,24 @@ import { useRouter } from 'next/navigation';
 import { Key, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { validateDomain, cleanDomain } from '@/lib/utils';
 
+interface ProgressState {
+  status: 'idle' | 'processing' | 'completed' | 'error';
+  progress: number;
+  currentStep: string;
+}
+
 export default function ReportForm() {
   const router = useRouter();
   const [domain, setDomain] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [progressState, setProgressState] = useState<ProgressState>({
+    status: 'idle',
+    progress: 0,
+    currentStep: '',
+  });
   const [error, setError] = useState<string | null>(null);
+
+  const isLoading = progressState.status === 'processing';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +46,11 @@ export default function ReportForm() {
       return;
     }
 
-    setIsLoading(true);
+    setProgressState({
+      status: 'processing',
+      progress: 0,
+      currentStep: 'Initializing...',
+    });
 
     try {
       const response = await fetch('/api/reports', {
@@ -48,17 +64,67 @@ export default function ReportForm() {
         }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
+      // Check if we got an error response (non-SSE)
+      const contentType = response.headers.get('content-type');
+      if (contentType?.includes('application/json')) {
+        const data = await response.json();
         throw new Error(data.error || 'Failed to create report');
       }
 
-      // Navigate to report page
-      router.push(`/report/${data.id}`);
+      // Handle SSE stream
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Failed to read response stream');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from buffer
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        let eventType = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7);
+          } else if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+
+            if (eventType === 'progress') {
+              setProgressState({
+                status: 'processing',
+                progress: data.progress,
+                currentStep: data.currentStep,
+              });
+            } else if (eventType === 'complete') {
+              setProgressState({
+                status: 'completed',
+                progress: 100,
+                currentStep: 'Report ready!',
+              });
+              // Navigate to report page
+              router.push(`/report/${data.id}`);
+              return;
+            } else if (eventType === 'error') {
+              throw new Error(data.error || 'Report generation failed');
+            }
+          }
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
-      setIsLoading(false);
+      setProgressState({
+        status: 'error',
+        progress: 0,
+        currentStep: '',
+      });
     }
   };
 
@@ -115,6 +181,29 @@ export default function ReportForm() {
           </div>
         </div>
 
+        {/* Progress Display */}
+        {isLoading && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">
+                {progressState.currentStep}
+              </span>
+              <span className="text-sm font-bold text-primary-600">
+                {progressState.progress}%
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-primary-500 h-2 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${progressState.progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-500 text-center">
+              This usually takes 30-60 seconds
+            </p>
+          </div>
+        )}
+
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-100 rounded-lg p-4 flex items-start gap-3">
@@ -140,9 +229,11 @@ export default function ReportForm() {
         </button>
 
         {/* Trust Indicator */}
-        <p className="text-center text-xs text-gray-500">
-          Your API key is used securely and never stored. Report generation typically takes 30-60 seconds.
-        </p>
+        {!isLoading && (
+          <p className="text-center text-xs text-gray-500">
+            Your API key is used securely and never stored. Report generation typically takes 30-60 seconds.
+          </p>
+        )}
       </form>
     </div>
   );

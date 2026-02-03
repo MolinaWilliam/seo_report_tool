@@ -1,5 +1,5 @@
 import { SeRankingClient } from './seranking';
-import { getReport, setReport, updateReportProgress } from './report-store';
+import { getReport, setReport } from './report-store';
 import type {
   ReportData,
   ReportProgress,
@@ -41,7 +41,7 @@ import type {
 } from './types';
 
 // Re-export store functions
-export { getReport, setReport, updateReportProgress };
+export { getReport, setReport };
 
 interface GeneratorOptions {
   onProgress?: (step: string, progress: number) => void;
@@ -50,16 +50,10 @@ interface GeneratorOptions {
 export async function generateReport(
   client: SeRankingClient,
   domain: string,
-  reportId: string,
   options: GeneratorOptions = {}
 ): Promise<ReportData> {
   const { onProgress } = options;
-  const updateProgress = async (step: string, progress: number) => {
-    await updateReportProgress(reportId, {
-      currentStep: step,
-      progress,
-      status: 'processing',
-    });
+  const updateProgress = (step: string, progress: number) => {
     onProgress?.(step, progress);
   };
 
@@ -67,7 +61,7 @@ export async function generateReport(
     // ============================================================
     // PHASE 1: Get worldwide overview to determine top market
     // ============================================================
-    await updateProgress('Analyzing traffic distribution...', 5);
+    updateProgress('Analyzing traffic distribution...', 5);
 
     const worldwideData = await client.getDomainOverviewWorldwide(domain).catch(() => ({
       topCountry: 'us',
@@ -83,7 +77,7 @@ export async function generateReport(
     // ============================================================
     // PHASE 2: Parallel calls (using top market)
     // ============================================================
-    await updateProgress('Fetching backlink and domain data...', 10);
+    updateProgress('Fetching backlink and domain data...', 10);
 
     // Create promises for top market overviews (to get detailed metrics like keywords_top3, traffic_cost)
     const topMarketOverviewPromises = topMarkets.map(market =>
@@ -143,12 +137,12 @@ export async function generateReport(
     // Use the top market's overview as the main domainOverview
     const domainOverview = topMarketMetrics.get(topMarket) || null;
 
-    await updateProgress('Backlinks & Keywords complete', 35);
+    updateProgress('Backlinks & Keywords complete', 35);
 
     // ============================================================
     // PHASE 2.5: Domain Analysis & Competitor Comparison
     // ============================================================
-    await updateProgress('Fetching domain analysis data...', 38);
+    updateProgress('Fetching domain analysis data...', 38);
 
     const topCompetitorForAnalysis = competitorsResult.data?.[0];
 
@@ -214,12 +208,12 @@ export async function generateReport(
       };
     }) || [];
 
-    await updateProgress('Domain analysis complete', 42);
+    updateProgress('Domain analysis complete', 42);
 
     // ============================================================
     // PHASE 2.6: Multi-Competitor Gap Analysis
     // ============================================================
-    await updateProgress('Analyzing multi-competitor gaps...', 43);
+    updateProgress('Analyzing multi-competitor gaps...', 43);
 
     // Analyze gaps across top 5 competitors (need at least 2 for meaningful analysis)
     const top5Competitors = competitorsResult.data?.slice(0, 5).map(c => c.domain) || [];
@@ -228,12 +222,12 @@ export async function generateReport(
           .catch(() => null)
       : null;
 
-    await updateProgress('Multi-competitor analysis complete', 48);
+    updateProgress('Multi-competitor analysis complete', 48);
 
     // ============================================================
     // PHASE 2.7: Top Pages Worldwide Stats (for Domain Analysis)
     // ============================================================
-    await updateProgress('Fetching worldwide page stats...', 49);
+    updateProgress('Fetching worldwide page stats...', 49);
 
     // Get worldwide stats for our top pages (for domain analysis section)
     let topPagesWorldwide: import('./types').URLOverviewWorldwide[] = [];
@@ -253,7 +247,7 @@ export async function generateReport(
     // ============================================================
     // PHASE 2.8: Page-to-Page Keyword Comparison (for Competitive)
     // ============================================================
-    await updateProgress('Comparing page keywords...', 50);
+    updateProgress('Comparing page keywords...', 50);
 
     // Compare our top page vs competitor's top page using URL keyword comparison
     let pageComparisons: PageComparison[] = [];
@@ -293,7 +287,7 @@ export async function generateReport(
     // ============================================================
     // PHASE 3: AI Search + Content Opportunities (using top market)
     // ============================================================
-    await updateProgress('Analyzing AI search visibility...', 51);
+    updateProgress('Analyzing AI search visibility...', 51);
 
     const topCompetitor = competitorsResult.data?.[0];
     const topKeyword = allKeywordsResult.data?.[0]?.keyword || domain.split('.')[0];
@@ -327,7 +321,7 @@ export async function generateReport(
       ? competitorsList
       : defaultCompetitors.filter(c => c.target !== domain).slice(0, 3);
 
-    await updateProgress('Fetching AI leaderboard...', 55);
+    updateProgress('Fetching AI leaderboard...', 55);
 
     try {
       const leaderboardResult = await client.getAISearchLeaderboard(
@@ -346,7 +340,7 @@ export async function generateReport(
       // AI Leaderboard not available, continue with fallback
     }
 
-    await updateProgress('Fetching AI search data...', 65);
+    updateProgress('Fetching AI search data...', 65);
 
     // Determine which engines to fetch prompts from based on leaderboard presence
     // Only fetch from engines where target has presence (brand or link citations)
@@ -446,12 +440,12 @@ export async function generateReport(
       }
     }
 
-    await updateProgress('AI & Content Analysis complete', 80);
+    updateProgress('AI & Content Analysis complete', 80);
 
     // ============================================================
     // PHASE 3.5: Advanced Keyword Research & Backlink Intelligence
     // ============================================================
-    await updateProgress('Fetching keyword research data...', 82);
+    updateProgress('Fetching keyword research data...', 82);
 
     // Get keyword research data (using top keyword as seed)
     const seedKeyword = allKeywordsResult.data?.[0]?.keyword || domain.split('.')[0];
@@ -472,12 +466,12 @@ export async function generateReport(
       client.getReferringIpsAnalysis(domain, 20).catch(() => []),
     ]);
 
-    await updateProgress('Keyword research & backlink intelligence complete', 87);
+    updateProgress('Keyword research & backlink intelligence complete', 87);
 
     // ============================================================
     // PHASE 3.6: Paid Ads Intelligence
     // ============================================================
-    await updateProgress('Analyzing paid ads...', 88);
+    updateProgress('Analyzing paid ads...', 88);
 
     // First, fetch keywords the domain is actually bidding on (paid keywords)
     const domainPaidKeywordsResult = await client.getDomainPaidKeywords(domain, topMarket, {
@@ -505,12 +499,12 @@ export async function generateReport(
     const domainPaidAdsResult = await client.getDomainPaidAds(domain, topMarket, { limit: 20 })
       .catch(() => ({ data: [] }));
 
-    await updateProgress('Paid ads analysis complete', 90);
+    updateProgress('Paid ads analysis complete', 90);
 
     // ============================================================
     // PHASE 3.7: Enhanced Backlink Intelligence
     // ============================================================
-    await updateProgress('Analyzing backlink quality...', 91);
+    updateProgress('Analyzing backlink quality...', 91);
 
     const [refDomainHistoryResult, authorityTrendResult] = await Promise.all([
       client.getRefDomainsHistory(domain, 30).catch(() => []),
@@ -535,7 +529,7 @@ export async function generateReport(
       qualityLost: calculateAvgDA(lostRefDomains),
     };
 
-    await updateProgress('Backlink quality analysis complete', 93);
+    updateProgress('Backlink quality analysis complete', 93);
 
     // Build keyword research data
     const allSuggestions = [...similarKeywordsResult, ...relatedKeywordsResult, ...longTailKeywordsResult];
@@ -571,7 +565,7 @@ export async function generateReport(
     // ============================================================
     // PHASE 4: Compile Report
     // ============================================================
-    await updateProgress('Compiling report...', 95);
+    updateProgress('Compiling report...', 95);
 
     // Collect API response logs and total credits from the client
     const apiLogs = client.getApiLogs();
@@ -630,14 +624,11 @@ export async function generateReport(
       totalCredits,
     });
 
-    await updateProgress('Report ready!', 100);
+    updateProgress('Report ready!', 100);
 
     return report;
   } catch (error) {
-    await updateReportProgress(reportId, {
-      status: 'failed',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    // Error handling is done by the API route via SSE
     throw error;
   }
 }

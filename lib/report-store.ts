@@ -1,7 +1,8 @@
 import { Report } from './types';
 import { getRedisClient } from './redis';
+import { compressData, decompressData, isCompressed } from './compression';
 
-const REPORT_TTL = 3600; // 1 hour in seconds
+const REPORT_TTL = 172800; // 2 days in seconds
 
 function getReportKey(id: string): string {
   return `report:${id}`;
@@ -12,6 +13,11 @@ export async function getReport(id: string): Promise<Report | undefined> {
     const redis = getRedisClient();
     const data = await redis.get(getReportKey(id));
     if (data) {
+      // Backwards compatibility: detect plain JSON vs compressed data
+      if (isCompressed(data)) {
+        return decompressData<Report>(data);
+      }
+      // Legacy format: plain JSON
       return JSON.parse(data);
     }
   } catch (error) {
@@ -23,19 +29,9 @@ export async function getReport(id: string): Promise<Report | undefined> {
 export async function setReport(id: string, report: Report): Promise<void> {
   try {
     const redis = getRedisClient();
-    await redis.setex(getReportKey(id), REPORT_TTL, JSON.stringify(report));
+    const compressed = compressData(report);
+    await redis.setex(getReportKey(id), REPORT_TTL, compressed);
   } catch (error) {
     console.error('Error writing report to Redis:', error);
-  }
-}
-
-export async function updateReportProgress(
-  id: string,
-  progress: Partial<Report['progress']>
-): Promise<void> {
-  const report = await getReport(id);
-  if (report) {
-    report.progress = { ...report.progress, ...progress } as Report['progress'];
-    await setReport(id, report);
   }
 }

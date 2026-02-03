@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import ProgressScreen from '@/components/ProgressScreen';
 import ExecutiveSummary from '@/components/Report/ExecutiveSummary';
 import BacklinkProfile from '@/components/Report/BacklinkProfile';
 import KeywordRankings from '@/components/Report/KeywordRankings';
@@ -57,11 +56,6 @@ export default function ReportPage() {
         }
 
         setReport(data);
-
-        // Keep polling if still processing
-        if (data.status === 'pending' || data.status === 'processing') {
-          setTimeout(fetchReport, 2000);
-        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Something went wrong');
       }
@@ -119,27 +113,6 @@ export default function ReportPage() {
         <Header />
         <main className="flex-1">
           <SkeletonReportPage />
-        </main>
-        <Footer />
-      </>
-    );
-  }
-
-  // Processing state
-  if (report.status === 'pending' || report.status === 'processing') {
-    return (
-      <>
-        <Header />
-        <main className="flex-1">
-          <ProgressScreen
-            domain={report.domain}
-            progress={report.progress || {
-              status: 'processing',
-              progress: 0,
-              currentStep: 'Starting...',
-              steps: [],
-            }}
-          />
         </main>
         <Footer />
       </>
