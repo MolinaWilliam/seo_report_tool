@@ -20,7 +20,7 @@ export async function POST(
     }
 
     // Get the report to find the domain
-    const report = getReport(id);
+    const report = await getReport(id);
     if (!report) {
       return NextResponse.json(
         { error: 'Report not found' },

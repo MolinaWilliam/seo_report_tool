@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    setReport(reportId, report);
+    await setReport(reportId, report);
 
     // Try to create API client
     const client = createSeRankingClient(apiKey, isApiKeyMode);
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     // Generate report in background
     (async () => {
       try {
-        updateReportProgress(reportId, {
+        await updateReportProgress(reportId, {
           status: 'processing',
           currentStep: 'Starting analysis...',
         });
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
           ];
 
           for (const { step, progress } of steps) {
-            updateReportProgress(reportId, {
+            await updateReportProgress(reportId, {
               currentStep: step,
               progress,
             });
@@ -108,10 +108,10 @@ export async function POST(request: NextRequest) {
           },
         };
 
-        setReport(reportId, completedReport);
+        await setReport(reportId, completedReport);
       } catch (error) {
         console.error('Report generation error:', error);
-        updateReportProgress(reportId, {
+        await updateReportProgress(reportId, {
           status: 'failed',
           error: error instanceof Error ? error.message : 'Unknown error',
         });

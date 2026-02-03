@@ -15,7 +15,7 @@ export async function GET(
       );
     }
 
-    const report = getReport(id);
+    const report = await getReport(id);
 
     if (!report) {
       return NextResponse.json(

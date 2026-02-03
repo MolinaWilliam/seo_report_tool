@@ -1,50 +1,41 @@
 import { Report } from './types';
-import * as fs from 'fs';
-import * as path from 'path';
+import { getRedisClient } from './redis';
 
-// Use file-based storage for development
-const STORE_DIR = path.join(process.cwd(), '.report-cache');
+const REPORT_TTL = 3600; // 1 hour in seconds
 
-function ensureStoreDir() {
-  if (!fs.existsSync(STORE_DIR)) {
-    fs.mkdirSync(STORE_DIR, { recursive: true });
-  }
+function getReportKey(id: string): string {
+  return `report:${id}`;
 }
 
-function getReportPath(id: string): string {
-  return path.join(STORE_DIR, `${id}.json`);
-}
-
-export function getReport(id: string): Report | undefined {
+export async function getReport(id: string): Promise<Report | undefined> {
   try {
-    const filePath = getReportPath(id);
-    if (fs.existsSync(filePath)) {
-      const data = fs.readFileSync(filePath, 'utf-8');
+    const redis = getRedisClient();
+    const data = await redis.get(getReportKey(id));
+    if (data) {
       return JSON.parse(data);
     }
   } catch (error) {
-    console.error('Error reading report:', error);
+    console.error('Error reading report from Redis:', error);
   }
   return undefined;
 }
 
-export function setReport(id: string, report: Report): void {
+export async function setReport(id: string, report: Report): Promise<void> {
   try {
-    ensureStoreDir();
-    const filePath = getReportPath(id);
-    fs.writeFileSync(filePath, JSON.stringify(report, null, 2));
+    const redis = getRedisClient();
+    await redis.setex(getReportKey(id), REPORT_TTL, JSON.stringify(report));
   } catch (error) {
-    console.error('Error writing report:', error);
+    console.error('Error writing report to Redis:', error);
   }
 }
 
-export function updateReportProgress(
+export async function updateReportProgress(
   id: string,
   progress: Partial<Report['progress']>
-): void {
-  const report = getReport(id);
+): Promise<void> {
+  const report = await getReport(id);
   if (report) {
     report.progress = { ...report.progress, ...progress } as Report['progress'];
-    setReport(id, report);
+    await setReport(id, report);
   }
 }
